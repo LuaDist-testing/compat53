@@ -42,6 +42,22 @@ string packing modules automatically. If unsuccessful, pure Lua
 versions of the new `table` functions are used as a fallback, and
 [Roberto's struct library][1] is tried for string packing.
 
+#### Lua submodules
+
+```lua
+local _ENV = require("compat53.module")
+if setfenv then setfenv(1, _ENV) end
+```
+
+The `compat53.module` module does not modify the global environment,
+and so it is safe to use in modules without affecting other Lua files.
+It is supposed to be set as the current environment (see above), i.e.
+cherry picking individual functions from this module is expressly
+*not* supported!). Not all features are available when using this
+module (e.g. yieldable (x)pcall support, string/file methods, etc.),
+so it is recommended to use plain `require("compat53")` whenever
+possible.
+
 ### C code
 
 There are two ways of adding the C API compatibility functions/macros to
@@ -65,9 +81,9 @@ your project:
 * the `utf8` module backported from the Lua 5.3 sources
 * `string.pack`, `string.packsize`, and `string.unpack` from the Lua
   5.3 sources or from the `struct` module. (`struct` is not 100%
-  compatible to Lua 5.3's string packing!)
+  compatible to Lua 5.3's string packing!) (See [here][4])
 * `math.maxinteger` and `math.mininteger`, `math.tointeger`, `math.type`,
-  and `math.ult`
+  and `math.ult` (see [here][5])
 * `ipairs` respects `__index` metamethod
 * `table.move`
 * `table` library respects metamethods
@@ -75,52 +91,55 @@ your project:
 For Lua 5.1 additionally:
 * `load` and `loadfile` accept `mode` and `env` parameters
 * `table.pack` and `table.unpack`
-* string patterns may contain embedded zeros
+* string patterns may contain embedded zeros (but see [here][6])
 * `string.rep` accepts `sep` argument
 * `string.format` calls `tostring` on arguments for `%s`
 * `math.log` accepts base argument
 * `xpcall` takes additional arguments
-* `pcall` and `xpcall` can execute functions that yield
-* `pairs` respects `__pairs` metamethod
+* `pcall` and `xpcall` can execute functions that yield (see
+  [here][22] for a possible problem with `coroutine.running`)
+* `pairs` respects `__pairs` metamethod (see [here][7])
 * `rawlen` (but `#` still doesn't respect `__len` for tables)
 * `package.searchers` as alias for `package.loaders`
-* `package.searchpath`
-* `coroutine` functions dealing with the main coroutine
+* `package.searchpath` (see [here][8])
+* `coroutine` functions dealing with the main coroutine (see
+  [here][22] for a possible problem with `coroutine.running`)
 * `coroutine.create` accepts functions written in C
-* return code of `os.execute`
+* return code of `os.execute` (see [here][9])
 * `io.write` and `file:write` return file handle
 * `io.lines` and `file:lines` accept format arguments (like `io.read`)
+  (see [here][10] and [here][11])
 * `debug.setmetatable` returns object
-* `debug.getuservalue` and `debug.setuservalue`
+* `debug.getuservalue` (see [here][12])
+* `debug.setuservalue` (see [here][13])
 
 ### C
 
-* `lua_KContext`
-* `lua_KFunction`
-* `lua_dump` (extra `strip` parameter, ignored)
+* `lua_KContext` (see [here][14])
+* `lua_KFunction` (see [here][14])
+* `lua_dump` (extra `strip` parameter, ignored, see [here][15])
 * `lua_getfield` (return value)
 * `lua_geti` and `lua_seti`
 * `lua_getglobal` (return value)
 * `lua_getmetafield` (return value)
 * `lua_gettable` (return value)
-* `lua_getuservalue` and `lua_setuservalue` (limited compatibility)
+* `lua_getuservalue` (limited compatibility, see [here][16])
+* `lua_setuservalue` (limited compatibility, see [here][17])
 * `lua_isinteger`
 * `lua_numbertointeger`
-* `lua_callk` and `lua_pcallk` (limited compatibility)
+* `lua_callk` and `lua_pcallk` (limited compatibility, see [here][14])
 * `lua_rawget` and `lua_rawgeti` (return values)
 * `lua_rawgetp` and `lua_rawsetp`
 * `luaL_requiref` (now checks `package.loaded` first)
 * `lua_rotate`
-* `lua_stringtonumber`
+* `lua_stringtonumber` (see [here][18])
 
 For Lua 5.1 additionally:
 * `LUA_OK`
 * `LUA_OP*` macros for `lua_arith` and `lua_compare`
 * `lua_Unsigned`
-* `luaL_Stream`
-* `LUA_FILEHANDLE`
 * `lua_absindex`
-* `lua_arith`
+* `lua_arith` (see [here][19])
 * `lua_compare`
 * `lua_len`, `lua_rawlen`, and `luaL_len`
 * `lua_copy`
@@ -131,9 +150,11 @@ For Lua 5.1 additionally:
 * `luaL_getsubtable`
 * `luaL_traceback`
 * `luaL_fileresult`
-* `luaL_checkversion` (with empty body, only to avoid compile errors)
+* `luaL_checkversion` (with empty body, only to avoid compile errors,
+  see [here][20])
 * `luaL_tolstring`
 * `luaL_buffinitsize`, `luaL_prepbuffsize`, and `luaL_pushresultsize`
+  (see [here][21])
 * `lua_pushunsigned`, `lua_tounsignedx`, `lua_tounsigned`,
   `luaL_checkunsigned`, `luaL_optunsigned`, if
   `LUA_COMPAT_APIINTCASTS` is defined.
@@ -160,41 +181,6 @@ For Lua 5.1 additionally:
   * `luaL_loadbufferx` (5.1)
   * `luaL_loadfilex` (5.1)
 
-### Yieldable C functions
-
-The emulation of `lua_(p)callk` for previous Lua versions is not 100%
-perfect, because the continuation functions in Lua 5.2 have different
-signatures than the ones in Lua 5.3 (and Lua 5.1 doesn't have
-continuation functions at all). But with the help of a small macro the
-same code can be used for all three Lua versions (the 5.1 version
-won't support yielding though).
-
-Original Lua 5.3 code (example adapted from the Lua 5.3 manual):
-
-```C
-static int k (lua_State *L, int status, lua_KContext ctx) {
-  ...  /* code 2 */
-}
-
-int original_function (lua_State *L) {
-  ...     /* code 1 */
-  return k(L, lua_pcallk(L, n, m, h, ctx2, k), ctx1);
-}
-```
-
-Portable version:
-
-```C
-LUA_KFUNCTION( k ) {
-  ...  /* code 2; parameters L, status, and ctx available here */
-}
-
-int original_function (lua_State *L) {
-  ...     /* code 1 */
-  return k(L, lua_pcallk(L, n, m, h, ctx2, k), ctx1);
-}
-```
-
 ## See also
 
 * For Lua-5.2-style APIs under Lua 5.1, see [lua-compat-5.2][2],
@@ -215,4 +201,23 @@ This package contains code written by:
   [1]: http://www.inf.puc-rio.br/~roberto/struct/
   [2]: http://github.com/keplerproject/lua-compat-5.2/
   [3]: http://keplerproject.org/compat/
+  [4]: https://github.com/keplerproject/lua-compat-5.3/wiki/string_packing
+  [5]: https://github.com/keplerproject/lua-compat-5.3/wiki/math.type
+  [6]: https://github.com/keplerproject/lua-compat-5.3/wiki/pattern_matching
+  [7]: https://github.com/keplerproject/lua-compat-5.3/wiki/pairs
+  [8]: https://github.com/keplerproject/lua-compat-5.3/wiki/package.searchpath
+  [9]: https://github.com/keplerproject/lua-compat-5.3/wiki/os.execute
+  [10]: https://github.com/keplerproject/lua-compat-5.3/wiki/io.lines
+  [11]: https://github.com/keplerproject/lua-compat-5.3/wiki/file.lines
+  [12]: https://github.com/keplerproject/lua-compat-5.3/wiki/debug.getuservalue
+  [13]: https://github.com/keplerproject/lua-compat-5.3/wiki/debug.setuservalue
+  [14]: https://github.com/keplerproject/lua-compat-5.3/wiki/yieldable_c_functions
+  [15]: https://github.com/keplerproject/lua-compat-5.3/wiki/lua_dump
+  [16]: https://github.com/keplerproject/lua-compat-5.3/wiki/lua_getuservalue
+  [17]: https://github.com/keplerproject/lua-compat-5.3/wiki/lua_setuservalue
+  [18]: https://github.com/keplerproject/lua-compat-5.3/wiki/lua_stringtonumber
+  [19]: https://github.com/keplerproject/lua-compat-5.3/wiki/lua_arith
+  [20]: https://github.com/keplerproject/lua-compat-5.3/wiki/luaL_checkversion
+  [21]: https://github.com/keplerproject/lua-compat-5.3/wiki/luaL_Buffer
+  [22]: https://github.com/keplerproject/lua-compat-5.3/wiki/coroutine.running
 
