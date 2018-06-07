@@ -1,17 +1,9 @@
--- This file was automatically generated for the LuaDist project.
-
 package = "compat53"
-version = "0.4-1"
--- LuaDist source
+version = "0.5-1"
 source = {
-  tag = "0.4-1",
-  url = "git://github.com/LuaDist-testing/compat53.git"
+   url = "https://github.com/keplerproject/lua-compat-5.3/archive/v0.5.zip",
+   dir = "lua-compat-5.3-0.5",
 }
--- Original source
--- source = {
---    url = "https://github.com/keplerproject/lua-compat-5.3/archive/v0.4.zip",
---    dir = "lua-compat-5.3-0.4",
--- }
 description = {
    summary = "Compatibility module providing Lua-5.3-style APIs for Lua 5.2 and 5.1",
    detailed = [[
@@ -37,3 +29,4 @@ build = {
       ["compat53.string"] = "lstrlib.c",
    }
 }
+
