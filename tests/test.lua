@@ -42,7 +42,7 @@ if arg[1] == "module" then
 end
 
 
-package.path = "../?.lua;../?/init.lua;"..package.path
+package.path = "../?.lua;../?/init.lua"
 package.cpath = "./?-"..V..".so;./?-"..V..".dll;./?.so;./?.dll"
 if mode == "module" then
   print("testing Lua API using `compat53.module` ...")
@@ -246,6 +246,49 @@ print("math.ult", math.ult(-1, -2), math.ult(-2, -1))
 print("math.ult", pcall(math.ult, "x", 2))
 print("math.ult", pcall(math.ult, 1, 2.1))
 ___''
+
+
+if utf8.len then
+  local unpack = table.unpack or unpack
+  local function utf8rt(s)
+    local t = { utf8.codepoint(s, 1, #s) }
+    local ps, cs = {}, {}
+    for p,c in utf8.codes(s) do
+      ps[#ps+1], cs[#cs+1] = p, c
+    end
+    print("utf8.codes", unpack(ps))
+    print("utf8.codes", unpack(cs))
+    print("utf8.codepoint", unpack(t))
+    print("utf8.len", utf8.len(s), #t, #s)
+    print("utf8.char", utf8.char(unpack(t)))
+  end
+  utf8rt("äöüßÄÖÜ")
+  utf8rt("abcdefg")
+  ___''
+  local s = "äöüßÄÖÜ"
+  print("utf8.offset", utf8.offset(s, 1, 1))
+  print("utf8.offset", utf8.offset(s, 2, 1))
+  print("utf8.offset", utf8.offset(s, 3, 1))
+  print("utf8.offset", pcall(utf8.offset, s, 3, 2))
+  print("utf8.offset", utf8.offset(s, 3, 3))
+  print("utf8.offset", utf8.offset(s, -1, 7))
+  print("utf8.offset", utf8.offset(s, -2, 7))
+  print("utf8.offset", utf8.offset(s, -3, 7))
+  print("utf8.offset", utf8.offset(s, -1))
+  ___''
+else
+  print("XXX: utf8 module not available")
+end
+
+
+if string.pack then
+  local format = "bBhHlLjJdc3z"
+  local s = string.pack(format, -128, 255, -32768, 65535, -2147483648, 4294967295, -32768, 65536, 1.25, "abc", "defgh")
+  print("string.unpack", string.unpack(format, s))
+  ___''
+else
+  print("XXX: string packing not available")
+end
 
 
 print("testing Lua API for Lua 5.1 ...")
@@ -728,6 +771,9 @@ local t = setmetatable({}, {
   __tostring = function(v) return nil end
 })
 print(pcall(mod.tolstring, t))
+local ud, meta = mod.newproxy()
+meta.__name = "XXX"
+print(mod.tolstring(ud):gsub(":.*$", ": yyy"))
 
 ___''
 print(mod.buffer())
