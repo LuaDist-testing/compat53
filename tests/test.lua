@@ -45,13 +45,24 @@ end
 package.path = "../?.lua;../?/init.lua;"..package.path
 package.cpath = "./?-"..V..".so;./?-"..V..".dll;./?.so;./?.dll"
 if mode == "module" then
-  print( "testing Lua API using `compat53.module` ..." )
+  print("testing Lua API using `compat53.module` ...")
   _ENV = require("compat53.module")
   if setfenv then setfenv(1, _ENV) end
 else
-  print( "testing Lua API using `compat53` ..." )
+  print("testing Lua API using `compat53` ...")
   require("compat53")
 end
+
+
+___''
+do
+  print("assert", F(pcall(assert, false)))
+  print("assert", F(pcall(assert, false, nil)))
+  print("assert", F(pcall(assert, false, "error msg")))
+  print("assert", F(pcall(assert, nil, {})))
+  print("assert", F(pcall(assert, 1, 2, 3)))
+end
+
 
 ___''
 do
@@ -505,7 +516,7 @@ do
          return _tostring(v)
       end
    end
-   print("string.format()", string.format("%q", "\"\\\0000\0010\r0\n0\t0\""))
+   print("string.format()", string.format("%q", "\"\\\0000\0010\002\r\n0\t0\""))
    print("string.format()", string.format("%12.3fx%%sxx%.6s", 3.1, {}))
    print("string.format()", string.format("%-3f %%%s %%s", 3.1, true))
    print("string.format()", string.format("% 3.2g %%d %%%s", 3.1, nil))
@@ -529,6 +540,26 @@ end
 ___''
 do
    writefile("data.txt", "123 18.8 hello world\ni'm here\n")
+   io.input("data.txt")
+   print("io.read()", io.read("*n", "*number", "*l", "*a"))
+   io.input("data.txt")
+   print("io.read()", io.read("n", "number", "l", "a"))
+   io.input(io.stdin)
+   if mode ~= "module" then
+     local f = assert(io.open("data.txt", "r"))
+     print("file:read()", f:read("*n", "*number", "*l", "*a"))
+     f:close()
+     f = assert(io.open("data.txt", "r"))
+     print("file:read()", f:read("n", "number", "l", "a"))
+     f:close()
+   end
+   os.remove("data.txt")
+end
+
+
+___''
+do
+   writefile("data.txt", "123 18.8 hello world\ni'm here\n")
    for a,b in io.lines("test.lua", 2, "*l") do
       print("io.lines()", a, b)
       break
@@ -537,7 +568,7 @@ do
       print("io.lines()", l)
       break
    end
-   for n1,n2,rest in io.lines("data.txt", "*n", "*n", "*a") do
+   for n1,n2,rest in io.lines("data.txt", "*n", "n", "*a") do
       print("io.lines()", n1, n2, rest)
    end
    for l in io.lines("data.txt") do
@@ -557,7 +588,7 @@ do
      end
      f:close()
      f = assert(io.open("data.txt", "r"))
-     for n1,n2,rest in f:lines("*n", "*n", "*a") do
+     for n1,n2,rest in f:lines("*n", "n", "*a") do
         print("file:lines()", n1, n2, rest)
      end
      f:close()
@@ -700,5 +731,10 @@ print(pcall(mod.tolstring, t))
 
 ___''
 print(mod.buffer())
+
+___''
+print(mod.exec("exit 0"))
+print(mod.exec("exit 1"))
+print(mod.exec("exit 25"))
 ___''
 

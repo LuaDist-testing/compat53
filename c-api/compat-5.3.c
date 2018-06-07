@@ -3,8 +3,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
-#include <lua.h>
-#include <lauxlib.h>
 #include "compat-5.3.h"
 
 /* don't compile it again if it already is included via compat53.h */
@@ -14,7 +12,7 @@
 
 
 /* definitions for Lua 5.1 only */
-#if defined( LUA_VERSION_NUM ) && LUA_VERSION_NUM == 501
+#if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM == 501
 
 
 COMPAT53_API int lua_absindex (lua_State *L, int i) {
@@ -154,6 +152,18 @@ COMPAT53_API lua_Number lua_tonumberx (lua_State *L, int i, int *isnum) {
 
 COMPAT53_API void luaL_checkversion (lua_State *L) {
   (void)L;
+}
+
+
+COMPAT53_API void luaL_checkstack (lua_State *L, int sp, const char *msg) {
+  if (!lua_checkstack(L, sp+LUA_MINSTACK)) {
+    if (msg != NULL)
+      luaL_error(L, "stack overflow (%s)", msg);
+    else {
+      lua_pushliteral(L, "stack overflow");
+      lua_error(L);
+    }
+  }
 }
 
 
@@ -366,6 +376,44 @@ COMPAT53_API int luaL_fileresult (lua_State *L, int stat, const char *fname) {
     return 3;
   }
 }
+
+
+#if !defined(l_inspectstat) && \
+    (defined(unix) || defined(__unix) || defined(__unix__) || \
+     defined(__TOS_AIX__) || defined(_SYSTYPE_BSD))
+/* some form of unix; check feature macros in unistd.h for details */
+#  include <unistd.h>
+/* check posix version; the relevant include files and macros probably
+ * were available before 2001, but I'm not sure */
+#  if defined(_POSIX_VERSION) && _POSIX_VERSION >= 200112L
+#    include <sys/wait.h>
+#    define l_inspectstat(stat,what) \
+  if (WIFEXITED(stat)) { stat = WEXITSTATUS(stat); } \
+  else if (WIFSIGNALED(stat)) { stat = WTERMSIG(stat); what = "signal"; }
+#  endif
+#endif
+
+/* provide default (no-op) version */
+#if !defined(l_inspectstat)
+#  define l_inspectstat(stat,what) ((void)0)
+#endif
+
+
+COMPAT53_API int luaL_execresult (lua_State *L, int stat) {
+  const char *what = "exit";
+  if (stat == -1)
+    return luaL_fileresult(L, 0, NULL);
+  else {
+    l_inspectstat(stat, what);
+    if (*what == 'e' && stat == 0)
+      lua_pushboolean(L, 1);
+    else
+      lua_pushnil(L);
+    lua_pushstring(L, what);
+    lua_pushinteger(L, stat);
+    return 3;
+  }
+}
 #endif /* not COMPAT53_IS_LUAJIT */
 
 
@@ -390,7 +438,7 @@ COMPAT53_API char *luaL_prepbuffsize (luaL_Buffer_53 *B, size_t s) {
       newcap = B->nelems + s;
     if (newcap < B->capacity) /* overflow */
       luaL_error(B->L2, "buffer too large");
-    newptr = lua_newuserdata(B->L2, newcap);
+    newptr = (char*)lua_newuserdata(B->L2, newcap);
     memcpy(newptr, B->ptr, B->nelems);
     if (B->ptr != B->b.buffer)
       lua_replace(B->L2, -2); /* remove old buffer */

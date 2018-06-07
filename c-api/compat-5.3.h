@@ -4,8 +4,14 @@
 #include <stddef.h>
 #include <limits.h>
 #include <string.h>
+#if defined( __cplusplus ) && !defined( COMPAT53_LUA_CPP )
+extern "C" {
+#endif
 #include <lua.h>
 #include <lauxlib.h>
+#if defined( __cplusplus ) && !defined( COMPAT53_LUA_CPP )
+}
+#endif
 
 
 #if defined(COMPAT53_PREFIX)
@@ -45,7 +51,6 @@
  * lua_upvaluejoin
  * lua_version
  * lua_yieldk
- * luaL_execresult
  * luaL_loadbufferx
  * luaL_loadfilex
  */
@@ -126,6 +131,9 @@ COMPAT53_API lua_Number lua_tonumberx (lua_State *L, int i, int *isnum);
 #define luaL_checkversion COMPAT53_CONCAT(COMPAT53_PREFIX, L_checkversion)
 COMPAT53_API void luaL_checkversion (lua_State *L);
 
+#define luaL_checkstack COMPAT53_CONCAT(COMPAT53_PREFIX, L_checkstack_53)
+COMPAT53_API void luaL_checkstack (lua_State *L, int sp, const char *msg);
+
 #define luaL_getsubtable COMPAT53_CONCAT(COMPAT53_PREFIX, L_getsubtable)
 COMPAT53_API int luaL_getsubtable (lua_State* L, int i, const char *name);
 
@@ -150,6 +158,9 @@ COMPAT53_API void luaL_traceback (lua_State *L, lua_State *L1, const char *msg, 
 
 #define luaL_fileresult COMPAT53_CONCAT(COMPAT53_PREFIX, L_fileresult)
 COMPAT53_API int luaL_fileresult (lua_State *L, int stat, const char *fname);
+
+#define luaL_execresult COMPAT53_CONCAT(COMPAT53_PREFIX, L_execresult)
+COMPAT53_API int luaL_execresult (lua_State *L, int stat);
 #endif /* COMPAT53_IS_LUAJIT */
 
 #define lua_callk(L, na, nr, ctx, cont) \
@@ -251,11 +262,14 @@ COMPAT53_API void lua_rotate (lua_State *L, int idx, int n);
 #define lua_seti COMPAT53_CONCAT(COMPAT53_PREFIX, _seti)
 COMPAT53_API void lua_seti (lua_State *L, int index, lua_Integer i);
 
-#define lua_strtonum COMPAT53_CONCAT(COMPAT53_PREFIX, _stringtonumber)
+#define lua_stringtonumber COMPAT53_CONCAT(COMPAT53_PREFIX, _stringtonumber)
 COMPAT53_API size_t lua_stringtonumber (lua_State *L, const char *s);
 
 #define luaL_getmetafield(L, o, e) \
   (luaL_getmetafield(L, o, e) ? lua_type(L, -1) : LUA_TNIL)
+
+#define luaL_newmetatable(L, tn) \
+  (luaL_newmetatable(L, tn) ? (lua_pushstring(L, tn), lua_setfield(L, -2, "__name"), 1) : 0)
 
 #define luaL_requiref COMPAT53_CONCAT(COMPAT53_PREFIX, L_requiref_53)
 COMPAT53_API void luaL_requiref (lua_State *L, const char *modname,
